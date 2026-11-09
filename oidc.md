@@ -8,8 +8,6 @@ Spurs Accounts is an OpenID Connect (OIDC) provider. It lets apps sign users in 
 | Sign users in to an outside app | Third-party apps | Authorization code + PKCE, with consent | [Third-party apps](#6-third-party-apps) |
 | Service calls service | Spurs backends | Client credentials | [Spurs to Spurs](#7-spurs-to-spurs-service-authentication) |
 
-> **Status note.** Sections 1 to 6 describe code that exists in the repo today. Section 7 (client credentials), the introspection endpoint, key rotation and the `oidc:client:create` command are additions proposed in the same working session. Check each against your tree before relying on it. They are marked **(added)**.
-
 ---
 
 ## 1. Concepts
@@ -68,7 +66,9 @@ A client is **confidential** when it has a secret (server-side apps, services) a
 | `code_challenge_method` | yes | Only `S256` |
 | `state` | recommended | Returned unchanged. Verify it |
 | `nonce` | recommended | Echoed in the ID token. Verify it |
-| `prompt` | no | `none` (never show UI) or `consent` (always ask) |
+| `prompt` | no | `none` (never show UI), `login` (require fresh authentication), or `consent` (always ask) |
+| `max_age` | no | Maximum authentication age in seconds |
+| `login_hint` | no | Prefill the login email hint |
 
 Errors that cannot be trusted to a redirect (unknown client, bad `redirect_uri`) go to the frontend at `/oauth/error`. All other errors are returned to the client's `redirect_uri` as `?error=...&error_description=...&state=...&iss=...`.
 
@@ -120,12 +120,14 @@ Response:
 | `GET /.well-known/openid-configuration` | Discovery document |
 | `GET /jwks` | Public signing keys |
 | `GET`/`POST /userinfo` | Claims for an access token. Also fails once the grant is removed |
+| `POST /introspect` | RFC 7662 token status; requires client authentication |
 | `POST /revoke` | Revoke a refresh token (RFC 7009). Needs client auth |
-| `GET /logout` | Sign out. Needs `id_token_hint` |
+| `GET /logout` | Sign out. Needs `id_token_hint`; notifies registered back-channel logout endpoints |
 | `GET /consent?request=` | Describe the pending request (needs a Spurs session) |
 | `POST /consent` | `{ request, approve }`. Returns `{ redirect }` |
+| `GET /client-info?client_id=` | Public name and logo URI for an active client |
 
-All paths are under the issuer, for example `/api/oidc/token`. `/authorize`, `/token` and `/revoke` are limited to 60 requests per minute per IP.
+All paths are under the issuer, for example `/api/oidc/token`. Interactive and token endpoints are throttled; introspection is limited per authenticated client, and userinfo, logout, and client-info are also throttled.
 
 ---
 
@@ -152,7 +154,7 @@ All paths are under the issuer, for example `/api/oidc/token`. `/authorize`, `/t
 | ID token | JWT RS256 | 600 s | `OIDC_ID_TOKEN_TTL` |
 | Refresh token | opaque, rotated | 30 days | `OIDC_REFRESH_TTL_DAYS` |
 | Consent request | JWT HS256 | 600 s | `OIDC_REQUEST_TTL` |
-| Service token (added) | JWT RS256, `typ: at+jwt` | 900 s | `OIDC_SERVICE_TTL` |
+| Service token | JWT RS256, `typ: at+jwt` | 900 s | `OIDC_SERVICE_TTL` |
 
 Access token claims: `iss`, `sub` (user id), `aud` (the client's `client_id`), `scope`, `client_id`, `gid` (grant id), `exp`, `jti`.
 
@@ -178,7 +180,7 @@ The SDK does all of this: `createVerifier` in `@spurs/auth/server`. With `strict
 
 ## 5. Registering a client
 
-**(added)** `oidc:client:create`:
+`oidc:client:create`:
 
 ```bash
 # first-party SPA (public, no consent)
@@ -194,8 +196,6 @@ npm run artisan -- oidc:client:create "Acme Billing" \
 ```
 
 The `client_secret` is printed once. Only its hash is stored.
-
-Until that command exists, insert a row into `oauth_clients` manually (`secret_hash` = `sha256(secret)` hex, JSON arrays for `redirect_uris`, `post_logout_redirect_uris`, `allowed_scopes`).
 
 ### Client fields
 
@@ -223,7 +223,7 @@ Same flow as section 2, with these differences:
 
 ---
 
-## 7. Spurs to Spurs (service authentication) **(added)**
+## 7. Spurs to Spurs (service authentication)
 
 For one Spurs backend calling another, or calling Accounts. No user, no browser, no consent. It uses the OAuth **client credentials** grant with an internal secret per service.
 
@@ -282,15 +282,15 @@ It caches the token, shares one in-flight request, and retries once on `401`.
 
 ```ts
 Route.get('/users/{id}', [internalUserController, 'show'])
-  .middleware('service:users:read');
+  .middleware('internal', 'service:users:read');
 ```
 
-`service:<scope>` is a middleware alias backed by `serviceAuth()`. It sets `req.service` (`clientId`, `scopes`).
+`internal` requires either a source IP listed in `INTERNAL_ALLOWED_IPS` or a matching `x-internal-secret` header checked against `INTERNAL_SHARED_SECRET`. `service:<scope>` verifies the bearer token and scope. Both checks are required; do not expose `/api/internal/*` to the public internet.
 
 ### Operational rules
 
 - One client per service, so each can be revoked or rotated alone.
-- Never expose `/api/internal/*` to the public internet. Restrict it at the proxy or network.
+- Never expose `/api/internal/*` to the public internet. Use the `internal` middleware and also restrict it at the proxy or network.
 - Rotate secrets on a schedule. Set `is_active = false` on a client to cut it off immediately (tokens still pass until they expire, 15 minutes by default).
 
 ---
@@ -301,13 +301,13 @@ Route.get('/users/{id}', [internalUserController, 'show'])
 |---|---|
 | `@spurs/auth` | Apps that sign users in (browser, or Node with the stateless methods) |
 | `@spurs/auth/server` | APIs verifying user access tokens |
-| `@spurs/auth/service` **(added)** | Backends calling other Spurs services |
+| `@spurs/auth/service` | Backends calling other Spurs services |
 
 ```ts
 import { SpursAuth } from '@spurs/auth';
 
 export const auth = new SpursAuth({
-  issuer: 'http://localhost:8080/api/oidc',
+  issuer: 'http://localhost:3000/api/oidc',
   clientId: 'YOUR_CLIENT_ID',
   redirectUri: `${location.origin}/callback`,
   postLogoutRedirectUri: location.origin,
@@ -335,11 +335,15 @@ See `sdk/js/README.md` for the full API.
 | `OIDC_CODE_TTL` | `60` | Seconds |
 | `OIDC_REQUEST_TTL` | `600` | Seconds |
 | `OIDC_REFRESH_TTL_DAYS` | `30` | Days |
-| `OIDC_SERVICE_TTL` | `900` | Seconds **(added)** |
-| `OIDC_INTERNAL_AUDIENCE` | `spurs-internal` | **(added)** |
+| `OIDC_SERVICE_TTL` | `900` | Seconds |
+| `OIDC_INTERNAL_AUDIENCE` | `spurs-internal` | Service-token audience |
+| `OIDC_RETIRED_PUBLIC_KEYS` | empty | Comma-separated RSA public PEMs retained in JWKS after key rotation |
+| `APP_URL` | `http://localhost:3000` | Public origin used to derive the default issuer |
 | `JWT_SECRET` | dev default | Signs consent request tokens. **Required in production** |
 | `FRONTEND_URL` | `http://localhost:5173` | Login, consent and error pages |
 | `CORS_ORIGINS` | `http://localhost:3000` | Needed for third-party browser apps in production |
+| `INTERNAL_ALLOWED_IPS` | empty | Comma-separated source IPs allowed to call internal routes |
+| `INTERNAL_SHARED_SECRET` | empty | Optional shared value accepted via `x-internal-secret` |
 
 ### Database tables
 
@@ -383,27 +387,54 @@ Token endpoint errors use the OAuth shape `{ "error": "...", "error_description"
 
 | Limitation | Effect | Mitigation |
 |---|---|---|
-| Access tokens are stateless JWTs | A removed app's token works until it expires (up to 10 min) | Shorter `OIDC_ACCESS_TTL`, `strict: true` in the SDK, or an introspection endpoint |
-| No token introspection endpoint | APIs cannot ask "is this token still valid" except via `/userinfo` | Add RFC 7662 `/introspect` |
-| Single signing key, no rotation | Changing the key invalidates all tokens | Publish retired public keys in JWKS while rotating |
+| Access tokens are stateless JWTs | APIs that only verify JWT signatures may accept a revoked token until it expires | Use SDK `strict: true` or call `/introspect` |
 | `aud` equals the client id | A resource API must list every client id it accepts | Dedicated API audiences if the list grows |
-| `/authorize` reads the session cookie only | Frontend and API must share a site in production | Set a shared cookie domain |
-| Logout is per app | Other apps' sessions stay alive | Back-channel logout |
-| `prompt` supports `none` and `consent` | No forced re-login, no `max_age`, no `login_hint` | Planned |
+| Browser session cookies are first-party | Frontend and API must share an origin or a parent domain in production | Use the Vercel same-origin rewrite or configure a shared cookie domain |
+| Logout reaches other clients only when registered | Clients without a back-channel logout URI retain their own sessions | Register a back-channel logout endpoint |
 | No dynamic client registration | Clients are created by an operator | By design |
 | Fixed scope list | No custom scopes or claims | Edit config and `claims.ts` |
 
 ---
 
-## 13. Production checklist
+## 13. Deploying on Render + Vercel
+
+The recommended deployment puts the frontend and API on one public origin. Vercel serves the React app and rewrites `/api/*` to the Render service, so browser cookies remain first-party and use `SameSite=Lax`.
+
+1. Deploy the backend web service from `backend/render.yaml`. Set the external database, Redis (if used), mail, and object-storage environment values in Render.
+2. In `frontend/vercel.json`, replace `<RENDER_SERVICE>` with the Render service hostname. The `/api/(.*)` rewrite must remain before the SPA `/(.*)` fallback.
+3. Configure the public origin consistently:
+   - `APP_URL=https://accounts.example.com`
+   - `OIDC_ISSUER=https://accounts.example.com/api/oidc` (or omit it to derive this from `APP_URL`)
+   - `FRONTEND_URL=https://accounts.example.com`
+   - Set `CORS_ORIGINS` to the exact allowed browser origins, with no `*`.
+4. Configure production secrets: `APP_KEY` or `JWT_SECRET`, `OIDC_PRIVATE_KEY`, and database credentials. `OIDC_PRIVATE_KEY` is a private RSA PEM and must never be committed. Production also requires `FRONTEND_URL` and a non-empty `CORS_ORIGINS`.
+5. Set the frontend's `VITE_API_PROXY` only for local development; production requests use the Vercel rewrite.
+
+If using separate subdomains on one parent domain instead (for example `accounts.example.com` and `api.example.com`), set `APP_URL=https://api.example.com`, `OIDC_ISSUER=https://api.example.com/api/oidc`, and `FRONTEND_URL=https://accounts.example.com`. Set `AUTH_COOKIE_DOMAIN=.example.com`. Cookies remain `SameSite=Lax` and secure over HTTPS; do not use `SameSite=None`.
+
+Render's filesystem is ephemeral. Use an external MySQL provider (Render does not offer managed MySQL), configure `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, and `DB_SSL` (plus `DB_SSL_CA` when required), and use S3-compatible avatar storage in production. Redis enables durable mail and shared rate-limit storage. The Render pre-deploy command runs migrations; `/health` checks the database.
+
+### Rotating the OIDC signing key
+
+1. Generate a new RSA private key and keep it in the secret manager as `OIDC_PRIVATE_KEY`.
+2. Before deploying it, add the current key's public PEM to `OIDC_RETIRED_PUBLIC_KEYS` (comma-separated if retaining multiple keys). This keeps the old `kid` in JWKS so existing tokens still verify.
+3. Deploy the new private key and confirm `/jwks` (or the discovery document's `jwks_uri`) includes both current and retired keys.
+4. Keep each old public key published until every token signed by it has expired, then remove it from `OIDC_RETIRED_PUBLIC_KEYS`.
+
+Never publish or store an old private key as a retired verification key.
+
+---
+
+## 14. Production checklist
 
 - [ ] `OIDC_PRIVATE_KEY` set (RSA 2048+), backed up, **not** in git
-- [ ] `JWT_SECRET` set to a long random value (`npm run artisan -- key:generate --write`)
-- [ ] `OIDC_ISSUER` is the public HTTPS URL and identical in every client
+- [ ] `APP_KEY` or `JWT_SECRET` set to a long random value
+- [ ] `OIDC_ISSUER` is the public HTTPS URL + `/api/oidc` and identical in every client
 - [ ] `FRONTEND_URL` and `CORS_ORIGINS` set
-- [ ] Cookie `secure` on, frontend and API on the same site
+- [ ] `APP_URL` and `FRONTEND_URL` match the chosen same-origin/subdomain deployment
+- [ ] Cookie is secure over HTTPS; `AUTH_COOKIE_DOMAIN` is set only for shared parent-domain deployments
 - [ ] Redirect URIs are HTTPS and exact
 - [ ] Service secrets live only in server environments
-- [ ] `/api/internal/*` blocked from the public internet
-- [ ] Migrations run, expired codes and refresh tokens cleaned (done on issue today)
-- [ ] A plan for key rotation exists before the first rotation is needed
+- [ ] `/api/internal/*` protected by `internal` and service-token middleware, and blocked from the public internet
+- [ ] Migrations run and token/code cleanup is monitored
+- [ ] `OIDC_RETIRED_PUBLIC_KEYS` retains old public keys for the lifetime of tokens signed by them

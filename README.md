@@ -26,7 +26,7 @@ npm run artisan -- oidc:client:create "VendPro" --first-party --public \
 import { SpursAuth } from '@spurs/auth';
 
 export const auth = new SpursAuth({
-  issuer: 'http://localhost:8080/api/oidc',
+  issuer: 'http://localhost:3000/api/oidc',
   clientId: 'YOUR_CLIENT_ID',
   redirectUri: `${location.origin}/callback`,
   postLogoutRedirectUri: location.origin,
