@@ -36,6 +36,30 @@ interface PendingRequest {
   createdAt: number;
 }
 
+function isTokenSet(value: unknown): value is TokenSet {
+  const parsed = record(value);
+  if (
+    !parsed ||
+    typeof parsed.accessToken !== 'string' ||
+    parsed.tokenType !== 'Bearer' ||
+    typeof parsed.expiresAt !== 'number' ||
+    !Number.isFinite(parsed.expiresAt) ||
+    !Array.isArray(parsed.scope) ||
+    !parsed.scope.every((item) => typeof item === 'string') ||
+    (parsed.idToken !== undefined && typeof parsed.idToken !== 'string') ||
+    (parsed.refreshToken !== undefined && typeof parsed.refreshToken !== 'string')
+  ) {
+    return false;
+  }
+  if (parsed.claims === undefined) return true;
+  const claims = record(parsed.claims);
+  return claims !== null &&
+    typeof claims.sub === 'string' &&
+    typeof claims.iss === 'string' &&
+    (typeof claims.aud === 'string' || Array.isArray(claims.aud)) &&
+    typeof claims.exp === 'number';
+}
+
 export class SpursAuth {
   readonly options: SpursAuthOptions & {
     issuer: string;
@@ -122,8 +146,6 @@ export class SpursAuth {
       ? callback
       : new URL(String(callback), 'http://localhost').searchParams;
 
-    const error = params.get('error');
-    if (error) throw new SpursAuthError(error, params.get('error_description') ?? error);
     if (!expected.state || params.get('state') !== expected.state) {
       throw new SpursAuthError('state_mismatch', 'The sign-in response does not match the request. Start again.');
     }
@@ -139,6 +161,8 @@ export class SpursAuth {
     ) {
       throw new SpursAuthError('issuer_mismatch', 'The sign-in response came from an unexpected issuer.');
     }
+    const error = params.get('error');
+    if (error) throw new SpursAuthError(error, params.get('error_description') ?? error);
     const code = params.get('code');
     if (!code) throw new SpursAuthError('invalid_response', 'The sign-in response has no authorization code.');
 
@@ -426,6 +450,9 @@ export class SpursAuth {
   ): Promise<TokenSet> {
     const accessToken = text(data.access_token);
     if (!accessToken) throw new SpursAuthError('invalid_response', 'The token response has no access_token.');
+    if (data.token_type !== undefined && data.token_type !== 'Bearer') {
+      throw new SpursAuthError('invalid_response', 'The token response uses an unsupported token type.');
+    }
     const expiresIn = Number(data.expires_in);
     if (!Number.isFinite(expiresIn) || expiresIn <= 0) {
       throw new SpursAuthError('invalid_response', 'The token response has an invalid expires_in value.');
@@ -484,18 +511,8 @@ export class SpursAuth {
     let value: TokenSet | null = null;
     if (raw) {
       try {
-        const parsed = record(JSON.parse(raw));
-        if (
-          parsed &&
-          typeof parsed.accessToken === 'string' &&
-          parsed.tokenType === 'Bearer' &&
-          typeof parsed.expiresAt === 'number' &&
-          Number.isFinite(parsed.expiresAt) &&
-          Array.isArray(parsed.scope) &&
-          parsed.scope.every((item) => typeof item === 'string')
-        ) {
-          value = parsed as unknown as TokenSet;
-        }
+        const parsed: unknown = JSON.parse(raw);
+        if (isTokenSet(parsed)) value = parsed;
       } catch {
         value = null;
       }

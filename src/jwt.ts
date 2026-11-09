@@ -193,7 +193,10 @@ export async function verifyJwt<T extends JwtClaims = JwtClaims>(
   if (typeof claims.exp !== 'number' || !Number.isFinite(claims.exp) || claims.exp + leeway < now) {
     throw invalid('Token has expired.');
   }
-  if (claims.nbf !== undefined && (typeof claims.nbf !== 'number' || claims.nbf - leeway > now)) {
+  if (
+    claims.nbf !== undefined &&
+    (typeof claims.nbf !== 'number' || !Number.isFinite(claims.nbf) || claims.nbf - leeway > now)
+  ) {
     throw invalid('Token is not valid yet.');
   }
   return jwt;

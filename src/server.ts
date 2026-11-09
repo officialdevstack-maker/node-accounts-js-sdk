@@ -73,6 +73,13 @@ export function createVerifier(options: VerifierOptions) {
     ) {
       throw new SpursAuthError('invalid_token', 'This is not an access token.');
     }
+    const audiences = Array.isArray(options.audience) ? options.audience : [options.audience];
+    if (!audiences.includes(payload.client_id)) {
+      throw new SpursAuthError('invalid_token', 'The access-token client does not match its audience.');
+    }
+    if (payload.scope !== undefined && typeof payload.scope !== 'string') {
+      throw new SpursAuthError('invalid_token', 'The access-token scope is invalid.');
+    }
 
     if (options.strict) {
       let response: Response;
