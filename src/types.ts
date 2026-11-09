@@ -32,6 +32,7 @@ export interface UserClaims {
 export interface IdTokenClaims extends JwtClaims, UserClaims {
   aud: string;
   auth_time?: number;
+  at_hash?: string;
   nonce?: string;
 }
 
@@ -70,7 +71,9 @@ export interface SpursAuthOptions {
 
 export interface SignInOptions {
   scope?: string;
-  prompt?: 'none' | 'consent';
+  prompt?: 'none' | 'login' | 'consent';
+  maxAge?: number;
+  loginHint?: string;
   returnTo?: string;
   redirectUri?: string;
 }

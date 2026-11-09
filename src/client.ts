@@ -15,7 +15,7 @@ import type {
   TokenSet,
   UserClaims,
 } from './types.js';
-import { nowSeconds, normalizeIssuer, record, text } from './util.js';
+import { base64urlEncode, nowSeconds, normalizeIssuer, record, text } from './util.js';
 
 const DEFAULT_SCOPE = 'openid profile email';
 const PENDING_TTL_MS = 15 * 60_000;
@@ -135,6 +135,18 @@ export class SpursAuth {
     url.searchParams.set('code_challenge', await createChallenge(codeVerifier));
     url.searchParams.set('code_challenge_method', 'S256');
     if (options.prompt) url.searchParams.set('prompt', options.prompt);
+    if (options.maxAge !== undefined) {
+      if (!Number.isSafeInteger(options.maxAge) || options.maxAge < 0) {
+        throw new SpursAuthError('invalid_argument', '`maxAge` must be a non-negative integer.');
+      }
+      url.searchParams.set('max_age', String(options.maxAge));
+    }
+    if (options.loginHint !== undefined) {
+      if (options.loginHint.length > 255) {
+        throw new SpursAuthError('invalid_argument', '`loginHint` must be at most 255 characters.');
+      }
+      url.searchParams.set('login_hint', options.loginHint);
+    }
     return { url: url.toString(), state, nonce, codeVerifier, redirectUri };
   }
 
@@ -469,7 +481,7 @@ export class SpursAuth {
     const idToken = text(data.id_token);
     if (idToken) {
       set.idToken = idToken;
-      set.claims = await this.verifyIdToken(idToken, context.nonce);
+      set.claims = await this.verifyIdToken(idToken, context.nonce, accessToken);
     } else if (context.previous?.idToken) {
       set.idToken = context.previous.idToken;
       if (context.previous.claims) set.claims = context.previous.claims;
@@ -481,7 +493,11 @@ export class SpursAuth {
     return set;
   }
 
-  private async verifyIdToken(idToken: string, nonce: string | undefined): Promise<IdTokenClaims> {
+  private async verifyIdToken(
+    idToken: string,
+    nonce: string | undefined,
+    accessToken: string,
+  ): Promise<IdTokenClaims> {
     const { payload } = await verifyJwt<IdTokenClaims>(idToken, this.jwks, {
       issuer: this.options.issuer,
       audience: this.options.clientId,
@@ -492,6 +508,16 @@ export class SpursAuth {
     }
     if (typeof payload.aud !== 'string') {
       throw new SpursAuthError('invalid_token', 'The ID token audience is invalid.');
+    }
+    if (payload.at_hash !== undefined) {
+      if (typeof payload.at_hash !== 'string') {
+        throw new SpursAuthError('invalid_token', 'The ID token access-token hash is invalid.');
+      }
+      const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(accessToken)));
+      const atHash = base64urlEncode(digest.subarray(0, 16));
+      if (payload.at_hash !== atHash) {
+        throw new SpursAuthError('invalid_token', 'The ID token does not match the access token.');
+      }
     }
     return payload;
   }

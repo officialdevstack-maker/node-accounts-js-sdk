@@ -1,6 +1,6 @@
 # @spurs/auth
 
-JavaScript SDK for Spurs Accounts using OpenID Connect authorization code flow with PKCE. It has no runtime dependencies and supports browsers and Node.js 20+.
+JavaScript SDK for Spurs Accounts with browser/server OpenID Connect authorization code flow and server-to-server client credentials. It has no runtime dependencies and supports browsers and Node.js 20+.
 
 ## Install locally
 
@@ -40,6 +40,7 @@ Start sign-in and finish it on the registered callback route:
 
 ```ts
 await auth.signIn({ returnTo: '/dashboard' });
+await auth.signIn({ prompt: 'login', maxAge: 300, loginHint: 'person@example.com' });
 
 const { user, returnTo } = await auth.handleRedirectCallback();
 navigate(returnTo, { replace: true });
@@ -99,6 +100,7 @@ With `strict: true`, the verifier also calls the authenticated RFC 7662 introspe
 ## Server-to-server service client
 
 Register internal services as first-party confidential clients. Their client-credentials tokens use service-only scopes and a separate `spurs-internal` audience; user-token verification and `/userinfo` do not accept them.
+The service-token lifetime defaults to 900 seconds (`OIDC_SERVICE_TTL`); set `OIDC_INTERNAL_AUDIENCE` to override the service audience.
 
 ```sh
 npm run artisan -- oidc:client:create "VendPro API" --service --scopes=users:read
@@ -120,6 +122,16 @@ const response = await spurs.fetch(`${process.env.SPURS_API}/api/internal/users/
 ```
 
 The client caches its short-lived token, shares concurrent token requests, and retries once after a `401`. Restrict `/api/internal/*` to trusted networks at the proxy or firewall as well; bearer tokens alone should not be the only network boundary.
+
+For general machine-to-machine access, register a confidential client with API-specific scopes:
+
+```sh
+npm run artisan -- oidc:client:create "Orders API" --client-credentials --scopes=orders:read,orders:write
+```
+
+It can obtain a bearer token from the standard `/token` endpoint with the `client_credentials` grant; only scopes explicitly assigned to that client are issued. The machine token represents the client, not a user.
+
+Back-channel logout endpoints can be registered with `--backchannel-logout=https://app.example.com/logout`. To share the browser session across subdomains, set `AUTH_COOKIE_DOMAIN` (for example, `.example.com`). During RSA-key rotation, publish old public PEMs in `OIDC_RETIRED_PUBLIC_KEYS` until tokens signed by them have expired.
 
 ## Server-side web apps
 

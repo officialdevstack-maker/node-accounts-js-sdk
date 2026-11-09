@@ -54,15 +54,20 @@ test('authorization request and code exchange verify the ID token', async () => 
       const body = new URLSearchParams(String(init?.body));
       assert.equal(body.get('grant_type'), 'authorization_code');
       assert.equal(body.get('client_id'), 'client-a');
+      const accessToken = 'access-token';
+      const accessTokenDigest = new Uint8Array(
+        await crypto.subtle.digest('SHA-256', encoder.encode(accessToken)),
+      );
       const idToken = await sign(pair.privateKey, {
         iss: issuer,
         sub: 'user-7',
         aud: 'client-a',
         exp: Math.floor(Date.now() / 1000) + 60,
         nonce,
+        at_hash: base64urlEncode(accessTokenDigest.subarray(0, 16)),
       });
       return Response.json({
-        access_token: 'access-token',
+        access_token: accessToken,
         token_type: 'Bearer',
         expires_in: 600,
         scope: 'openid profile',
@@ -83,13 +88,20 @@ test('authorization request and code exchange verify the ID token', async () => 
     storage: 'memory',
     fetch: fetchFn,
   });
-  const request = await auth.createAuthorizationRequest();
+  const request = await auth.createAuthorizationRequest({
+    prompt: 'login',
+    maxAge: 300,
+    loginHint: 'user@example.com',
+  });
   const authorizationUrl = new URL(request.url);
   nonce = request.nonce;
 
   assert.equal(authorizationUrl.searchParams.get('response_type'), 'code');
   assert.equal(authorizationUrl.searchParams.get('code_challenge_method'), 'S256');
   assert.equal(authorizationUrl.searchParams.get('scope'), 'openid profile email');
+  assert.equal(authorizationUrl.searchParams.get('prompt'), 'login');
+  assert.equal(authorizationUrl.searchParams.get('max_age'), '300');
+  assert.equal(authorizationUrl.searchParams.get('login_hint'), 'user@example.com');
 
   const tokens = await auth.exchangeCode(
     new URLSearchParams({
