@@ -68,6 +68,15 @@ Import the verifier from `@spurs/auth/server`. It verifies RS256 access tokens, 
 ```ts
 import express from 'express';
 import { createVerifier } from '@spurs/auth/server';
+import type { VerifiedToken } from '@spurs/auth/server';
+
+declare global {
+  namespace Express {
+    interface Request {
+      spurs?: VerifiedToken;
+    }
+  }
+}
 
 const spurs = createVerifier({
   issuer: process.env.SPURS_ISSUER!,

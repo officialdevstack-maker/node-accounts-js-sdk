@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { SpursAuth } from '../src/client.js';
+import { MemoryStorage } from '../src/storage.js';
 import { base64urlEncode } from '../src/util.js';
 
 const issuer = 'https://issuer.test/api/oidc';
@@ -107,5 +108,61 @@ test('authorization request and code exchange verify the ID token', async () => 
   assert.equal(tokens.claims?.nonce, request.nonce);
   assert.deepEqual(await auth.userinfo(tokens.accessToken), { sub: 'user-7', name: 'User Seven' });
   assert.equal(calls.filter((call) => call.url.endsWith('/jwks')).length, 1);
+  auth.dispose();
+});
+
+test('fetch retries once after a 401 and persists the rotated refresh token', async () => {
+  const storage = new MemoryStorage();
+  storage.setItem('spurs:client-a:session', JSON.stringify({
+    accessToken: 'old-access-token',
+    tokenType: 'Bearer',
+    expiresAt: Math.floor(Date.now() / 1000) + 300,
+    scope: ['openid'],
+    refreshToken: 'old-refresh-token',
+  }));
+  const resourceAuthorizations: string[] = [];
+  const fetchFn: typeof fetch = async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (url.endsWith('/.well-known/openid-configuration')) {
+      return Response.json({
+        issuer,
+        authorization_endpoint: `${issuer}/authorize`,
+        token_endpoint: `${issuer}/token`,
+        userinfo_endpoint: `${issuer}/userinfo`,
+        jwks_uri: `${issuer}/jwks`,
+      });
+    }
+    if (url.endsWith('/token')) {
+      const body = new URLSearchParams(String(init?.body));
+      assert.equal(body.get('grant_type'), 'refresh_token');
+      assert.equal(body.get('refresh_token'), 'old-refresh-token');
+      return Response.json({
+        access_token: 'new-access-token',
+        token_type: 'Bearer',
+        expires_in: 600,
+        scope: 'openid',
+        refresh_token: 'new-refresh-token',
+      });
+    }
+    if (url === 'https://api.test/me') {
+      resourceAuthorizations.push(new Headers(input instanceof Request ? input.headers : init?.headers).get('authorization') ?? '');
+      return resourceAuthorizations.length === 1
+        ? new Response(null, { status: 401 })
+        : new Response('ok', { status: 200 });
+    }
+    return new Response(null, { status: 404 });
+  };
+  const auth = new SpursAuth({
+    issuer,
+    clientId: 'client-a',
+    redirectUri: 'https://app.test/callback',
+    storage,
+    fetch: fetchFn,
+  });
+
+  const response = await auth.fetch('https://api.test/me', { method: 'GET' });
+  assert.equal(response.status, 200);
+  assert.deepEqual(resourceAuthorizations, ['Bearer old-access-token', 'Bearer new-access-token']);
+  assert.equal(auth.getTokens()?.refreshToken, 'new-refresh-token');
   auth.dispose();
 });

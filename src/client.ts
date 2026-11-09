@@ -290,10 +290,11 @@ export class SpursAuth {
   }
 
   async fetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+    const request = new Request(input, init);
     const sendWithToken = async (token: string) => {
-      const headers = new Headers(init.headers);
-      headers.set('Authorization', `Bearer ${token}`);
-      return this.fetchFn(input, { ...init, headers });
+      const authenticated = request.clone();
+      authenticated.headers.set('Authorization', `Bearer ${token}`);
+      return this.fetchFn(authenticated);
     };
 
     const first = await sendWithToken(await this.getAccessToken());
