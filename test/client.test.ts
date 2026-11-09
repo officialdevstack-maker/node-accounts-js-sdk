@@ -7,6 +7,18 @@ import { base64urlEncode } from '../src/util.js';
 const issuer = 'https://issuer.test/api/oidc';
 const encoder = new TextEncoder();
 
+test('issuer is optional and defaults to the configured Spurs OIDC endpoint', () => {
+  const auth = new SpursAuth({
+    clientId: 'client-a',
+    redirectUri: 'https://app.test/callback',
+    storage: 'memory',
+    fetch: async () => new Response(null, { status: 404 }),
+  });
+
+  assert.equal(auth.options.issuer, 'https://node-accounts-backend.onrender.com/api/oidc');
+  auth.dispose();
+});
+
 async function sign(privateKey: CryptoKey, payload: object): Promise<string> {
   const header = base64urlEncode(encoder.encode(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid: 'test-key' })));
   const body = base64urlEncode(encoder.encode(JSON.stringify(payload)));

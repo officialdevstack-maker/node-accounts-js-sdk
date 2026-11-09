@@ -26,7 +26,6 @@ npm run artisan -- oidc:client:create "VendPro" --first-party --public \
 import { SpursAuth } from '@spurs/auth';
 
 export const auth = new SpursAuth({
-  issuer: 'http://localhost:3000/api/oidc',
   clientId: 'YOUR_CLIENT_ID',
   redirectUri: `${location.origin}/callback`,
   postLogoutRedirectUri: location.origin,
@@ -35,6 +34,8 @@ export const auth = new SpursAuth({
   // storage: 'memory',   // Or 'session' (default) or 'local'.
 });
 ```
+
+The SDK defaults to `https://node-accounts-backend.onrender.com/api/oidc`. To change that hardcoded default, edit `DEFAULT_ISSUER` in `sdk/js/src/client.ts`; you can also override it per instance with the optional `issuer` setting.
 
 Start sign-in and finish it on the registered callback route:
 

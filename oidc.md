@@ -307,7 +307,6 @@ Route.get('/users/{id}', [internalUserController, 'show'])
 import { SpursAuth } from '@spurs/auth';
 
 export const auth = new SpursAuth({
-  issuer: 'http://localhost:3000/api/oidc',
   clientId: 'YOUR_CLIENT_ID',
   redirectUri: `${location.origin}/callback`,
   postLogoutRedirectUri: location.origin,
@@ -318,6 +317,8 @@ const { user, returnTo } = await auth.handleRedirectCallback(); // /callback pag
 await auth.fetch('/api/wallet');                            // Bearer + auto refresh
 await auth.signOutEverywhere();                             // app and Spurs account
 ```
+
+The SDK defaults to `https://node-accounts-backend.onrender.com/api/oidc`. To change that hardcoded default, edit `DEFAULT_ISSUER` in `sdk/js/src/client.ts`; you can also override it per instance with the optional `issuer` setting.
 
 See `sdk/js/README.md` for the full API.
 

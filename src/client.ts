@@ -18,6 +18,7 @@ import type {
 import { base64urlEncode, nowSeconds, normalizeIssuer, record, text } from './util.js';
 
 const DEFAULT_SCOPE = 'openid profile email';
+const DEFAULT_ISSUER = 'https://node-accounts-backend.onrender.com/api/oidc';
 const PENDING_TTL_MS = 15 * 60_000;
 const CALLBACK_PARAMS = ['code', 'state', 'iss', 'error', 'error_description'];
 const env = globalThis as typeof globalThis & {
@@ -81,9 +82,12 @@ export class SpursAuth {
   private cache: { raw: string | null; value: TokenSet | null } = { raw: null, value: null };
 
   constructor(options: SpursAuthOptions) {
-    if (!options.issuer) throw new SpursAuthError('invalid_config', '`issuer` is required.');
     if (!options.clientId) throw new SpursAuthError('invalid_config', '`clientId` is required.');
     if (!options.redirectUri) throw new SpursAuthError('invalid_config', '`redirectUri` is required.');
+    const issuer = options.issuer ?? DEFAULT_ISSUER;
+    if (typeof issuer !== 'string' || !issuer.trim()) {
+      throw new SpursAuthError('invalid_config', '`issuer` must be a non-empty string.');
+    }
     if (options.leewaySeconds !== undefined && (!Number.isFinite(options.leewaySeconds) || options.leewaySeconds < 0)) {
       throw new SpursAuthError('invalid_config', '`leewaySeconds` must be a non-negative number.');
     }
@@ -96,7 +100,7 @@ export class SpursAuth {
 
     this.options = {
       ...options,
-      issuer: normalizeIssuer(options.issuer),
+      issuer: normalizeIssuer(issuer),
       scope: options.scope ?? DEFAULT_SCOPE,
       leewaySeconds: options.leewaySeconds ?? 60,
       refreshSkewSeconds: options.refreshSkewSeconds ?? 30,

@@ -54,7 +54,7 @@ export interface TokenSet {
 }
 
 export interface SpursAuthOptions {
-  issuer: string;
+  issuer?: string;
   clientId: string;
   redirectUri: string;
   postLogoutRedirectUri?: string;
