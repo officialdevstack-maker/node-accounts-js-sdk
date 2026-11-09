@@ -1,6 +1,6 @@
 {
   "name": "@spurs/auth",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "JavaScript SDK for Spurs Accounts (OpenID Connect, authorization code + PKCE)",
   "license": "ISC",
   "type": "module",
