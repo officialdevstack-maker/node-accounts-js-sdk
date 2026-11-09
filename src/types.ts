@@ -38,6 +38,7 @@ export interface IdTokenClaims extends JwtClaims, UserClaims {
 export interface AccessTokenClaims extends JwtClaims {
   scope?: string;
   client_id?: string;
+  grant_type?: 'client_credentials';
   gid?: number;
 }
 

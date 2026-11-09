@@ -15,6 +15,10 @@
     "./server": {
       "types": "./dist/src/server.d.ts",
       "default": "./dist/src/server.js"
+    },
+    "./service": {
+      "types": "./dist/src/service.d.ts",
+      "default": "./dist/src/service.js"
     }
   },
   "files": [

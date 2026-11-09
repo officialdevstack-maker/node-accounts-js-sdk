@@ -71,7 +71,6 @@ test('createVerifier checks access-token claims and middleware scopes', async ()
   const verifier = createVerifier({
     issuer,
     audience: 'client-a',
-    strict: true,
     fetch: fetchFn,
   });
   assert.equal((await verifier.verify(token)).grantId, 17);

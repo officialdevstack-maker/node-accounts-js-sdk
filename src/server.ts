@@ -7,13 +7,17 @@ import { normalizeIssuer, record } from './util.js';
 export interface VerifierOptions {
   issuer: string;
   audience: string | string[];
+  /** Query RFC 7662 introspection to reject disconnected apps before the access token expires. */
   strict?: boolean;
+  /** Confidential resource-server credentials authorized to introspect tokens. */
+  introspectionClient?: { clientId: string; clientSecret: string };
   leewaySeconds?: number;
   fetch?: typeof fetch;
 }
 
 export interface VerifiedToken {
   sub: string;
+  principalType: 'user' | 'client';
   clientId: string;
   grantId: number;
   scopes: string[];
@@ -50,6 +54,9 @@ export function createVerifier(options: VerifierOptions) {
   if (options.leewaySeconds !== undefined && (!Number.isFinite(options.leewaySeconds) || options.leewaySeconds < 0)) {
     throw new SpursAuthError('invalid_config', '`leewaySeconds` must be a non-negative number.');
   }
+  if (options.strict && (!options.introspectionClient?.clientId || !options.introspectionClient.clientSecret)) {
+    throw new SpursAuthError('invalid_config', '`strict` requires confidential `introspectionClient` credentials.');
+  }
 
   const issuer = normalizeIssuer(options.issuer);
   const fetchFn = options.fetch ?? globalThis.fetch?.bind(globalThis);
@@ -64,15 +71,20 @@ export function createVerifier(options: VerifierOptions) {
       leewaySeconds: options.leewaySeconds,
       typ: 'at+jwt',
     });
+
+    const isClientToken = payload.grant_type === 'client_credentials';
     if (
       typeof payload.gid !== 'number' ||
       !Number.isSafeInteger(payload.gid) ||
-      payload.gid < 1 ||
+      payload.gid < (isClientToken ? 0 : 1) ||
+      (isClientToken && (payload.gid !== 0 || payload.sub !== payload.client_id)) ||
       typeof payload.client_id !== 'string' ||
-      !payload.client_id
+      !payload.client_id ||
+      (!isClientToken && payload.grant_type !== undefined)
     ) {
       throw new SpursAuthError('invalid_token', 'This is not an access token.');
     }
+
     const audiences = Array.isArray(options.audience) ? options.audience : [options.audience];
     if (!audiences.includes(payload.client_id)) {
       throw new SpursAuthError('invalid_token', 'The access-token client does not match its audience.');
@@ -82,35 +94,65 @@ export function createVerifier(options: VerifierOptions) {
     }
 
     if (options.strict) {
+      const meta = await metadata();
+      if (!meta.introspection_endpoint) {
+        throw new SpursAuthError('introspection_unavailable', 'The provider does not advertise an introspection endpoint.');
+      }
+
+      const credentials = options.introspectionClient!;
+      const body = new URLSearchParams({ token });
+      const basic = btoa(`${encodeURIComponent(credentials.clientId)}:${encodeURIComponent(credentials.clientSecret)}`);
       let response: Response;
       try {
-        response = await fetchFn((await metadata()).userinfo_endpoint, {
-          headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        response = await fetchFn(meta.introspection_endpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${basic}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Accept: 'application/json',
+          },
+          body,
         });
       } catch (cause) {
-        throw new SpursAuthError('userinfo_unavailable', 'Could not verify access with the userinfo endpoint.', undefined, {
+        throw new SpursAuthError('introspection_unavailable', 'Could not reach the introspection endpoint.', undefined, {
           cause,
         });
       }
-      if (response.status === 401 || response.status === 403) {
-        throw new SpursAuthError('invalid_token', 'Access has been revoked.', response.status);
-      }
       if (!response.ok) {
-        throw new SpursAuthError('userinfo_unavailable', `Userinfo request failed (${response.status}).`, response.status);
+        throw new SpursAuthError(
+          'introspection_unavailable',
+          `Introspection request failed (${response.status}).`,
+          response.status,
+        );
       }
-      let userinfo: Record<string, unknown> | null;
+
+      let introspection: Record<string, unknown> | null;
       try {
-        userinfo = record(await response.json());
+        introspection = record(await response.json());
       } catch (cause) {
-        throw new SpursAuthError('userinfo_unavailable', 'Userinfo returned invalid JSON.', undefined, { cause });
+        throw new SpursAuthError('introspection_unavailable', 'Introspection returned invalid JSON.', undefined, {
+          cause,
+        });
       }
-      if (!userinfo || userinfo.sub !== payload.sub) {
-        throw new SpursAuthError('invalid_token', 'The userinfo subject does not match the token subject.');
+      if (!introspection) {
+        throw new SpursAuthError('introspection_unavailable', 'Introspection returned an invalid response.');
+      }
+      if (introspection.active !== true) {
+        throw new SpursAuthError('invalid_token', 'Access has been revoked.');
+      }
+      if (
+        introspection.sub !== payload.sub ||
+        introspection.client_id !== payload.client_id ||
+        introspection.aud !== payload.aud ||
+        introspection.exp !== payload.exp
+      ) {
+        throw new SpursAuthError('invalid_token', 'Introspection claims do not match the access token.');
       }
     }
 
     return {
       sub: payload.sub,
+      principalType: isClientToken ? 'client' : 'user',
       clientId: payload.client_id,
       grantId: payload.gid,
       scopes: (payload.scope ?? '').split(/\s+/).filter(Boolean),
@@ -154,7 +196,7 @@ export function createVerifier(options: VerifierOptions) {
           error instanceof SpursAuthError &&
           error.code !== 'jwks_unavailable' &&
           error.code !== 'discovery_failed' &&
-          error.code !== 'userinfo_unavailable'
+          error.code !== 'introspection_unavailable'
         ) {
           res.setHeader('WWW-Authenticate', 'Bearer error="invalid_token"');
           res.status(401).json({ message: 'Invalid or expired token.', error: 'invalid_token' });

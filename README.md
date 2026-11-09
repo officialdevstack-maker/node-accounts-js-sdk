@@ -81,7 +81,11 @@ declare global {
 const spurs = createVerifier({
   issuer: process.env.SPURS_ISSUER!,
   audience: process.env.SPURS_CLIENT_ID!,
-  // strict: true, // Also check /userinfo so revoked grants stop working immediately.
+  // strict: true,
+  // introspectionClient: {
+  //   clientId: process.env.SPURS_INTROSPECTION_CLIENT_ID!,
+  //   clientSecret: process.env.SPURS_INTROSPECTION_CLIENT_SECRET!,
+  // },
 });
 
 const app = express();
@@ -90,7 +94,32 @@ app.get('/api/me', spurs.middleware({ scopes: ['profile'] }), (req, res) => {
 });
 ```
 
-With `strict: true`, network or provider failures are passed to Express's error handler; invalid/revoked tokens are rejected as unauthorized.
+With `strict: true`, the verifier also calls the authenticated RFC 7662 introspection endpoint, so disconnected grants are rejected immediately. Configure confidential introspection-client credentials on the server. Network or provider failures are passed to Express's error handler; inactive tokens are rejected as unauthorized.
+
+## Server-to-server service client
+
+Register internal services as first-party confidential clients. Their client-credentials tokens use service-only scopes and a separate `spurs-internal` audience; user-token verification and `/userinfo` do not accept them.
+
+```sh
+npm run artisan -- oidc:client:create "VendPro API" --service --scopes=users:read
+```
+
+Keep the printed secret in the service's environment, never in browser code:
+
+```ts
+import { createServiceClient } from '@spurs/auth/service';
+
+const spurs = createServiceClient({
+  issuer: process.env.SPURS_ISSUER!,
+  clientId: process.env.SPURS_SERVICE_ID!,
+  clientSecret: process.env.SPURS_SERVICE_SECRET!,
+  scope: 'users:read',
+});
+
+const response = await spurs.fetch(`${process.env.SPURS_API}/api/internal/users/42`);
+```
+
+The client caches its short-lived token, shares concurrent token requests, and retries once after a `401`. Restrict `/api/internal/*` to trusted networks at the proxy or firewall as well; bearer tokens alone should not be the only network boundary.
 
 ## Server-side web apps
 
@@ -126,4 +155,4 @@ npm test
 npm run build
 ```
 
-No React bindings, device flow, or client-credentials grant are included.
+No React bindings or device flow are included.
