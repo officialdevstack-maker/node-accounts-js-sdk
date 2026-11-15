@@ -401,9 +401,9 @@ Token endpoint errors use the OAuth shape `{ "error": "...", "error_description"
 
 The recommended deployment puts the frontend and API on one public origin. Vercel serves the React app and rewrites `/api/*` to the Render service, so browser cookies remain first-party and use `SameSite=Lax`.
 
-1. Deploy the backend web service from `backend/render.yaml`. Set the external database, Redis (if used), mail, and object-storage environment values in Render.
+1. Deploy the backend web service from `backend/render.yaml`. Set the external database, Redis (if used), mail, and object-storage environment values in Render. For clients that connect directly to `node-accounts-backend.onrender.com`, keep `APP_URL=https://node-accounts-backend.onrender.com` and `OIDC_ISSUER=https://node-accounts-backend.onrender.com/api/oidc`; discovery endpoints and token `iss` claims are derived from this issuer.
 2. In `frontend/vercel.json`, replace `<RENDER_SERVICE>` with the Render service hostname. The `/api/(.*)` rewrite must remain before the SPA `/(.*)` fallback.
-3. Configure the public origin consistently:
+3. If using the recommended Vercel same-origin setup, override the Render defaults and configure the public origin consistently:
    - `APP_URL=https://accounts.example.com`
    - `OIDC_ISSUER=https://accounts.example.com/api/oidc` (or omit it to derive this from `APP_URL`)
    - `FRONTEND_URL=https://accounts.example.com`
