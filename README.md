@@ -35,7 +35,7 @@ export const auth = new SpursAuth({
 });
 ```
 
-The SDK defaults to `https://node-accounts-backend.onrender.com/api/oidc`. To change that hardcoded default, edit `DEFAULT_ISSUER` in `sdk/js/src/client.ts`; you can also override it per instance with the optional `issuer` setting.
+The SDK defaults to `https://accounts.spurs.com.ng/api/oidc`. To change that hardcoded default, edit `DEFAULT_ISSUER` in `sdk/js/src/client.ts`; you can also override it per instance with the optional `issuer` setting.
 
 Start sign-in and finish it on the registered callback route:
 

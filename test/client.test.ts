@@ -15,7 +15,7 @@ test('issuer is optional and defaults to the configured Spurs OIDC endpoint', ()
     fetch: async () => new Response(null, { status: 404 }),
   });
 
-  assert.equal(auth.options.issuer, 'https://node-accounts-backend.onrender.com/api/oidc');
+  assert.equal(auth.options.issuer, 'https://accounts.spurs.com.ng/api/oidc');
   auth.dispose();
 });
 

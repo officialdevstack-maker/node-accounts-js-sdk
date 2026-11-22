@@ -318,7 +318,7 @@ await auth.fetch('/api/wallet');                            // Bearer + auto ref
 await auth.signOutEverywhere();                             // app and Spurs account
 ```
 
-The SDK defaults to `https://node-accounts-backend.onrender.com/api/oidc`. To change that hardcoded default, edit `DEFAULT_ISSUER` in `sdk/js/src/client.ts`; you can also override it per instance with the optional `issuer` setting.
+The SDK defaults to `https://accounts.spurs.com.ng/api/oidc`. To change that hardcoded default, edit `DEFAULT_ISSUER` in `sdk/js/src/client.ts`; you can also override it per instance with the optional `issuer` setting.
 
 See `sdk/js/README.md` for the full API.
 
@@ -345,6 +345,8 @@ See `sdk/js/README.md` for the full API.
 | `CORS_ORIGINS` | `http://localhost:3000` | Needed for third-party browser apps in production |
 | `INTERNAL_ALLOWED_IPS` | empty | Comma-separated source IPs allowed to call internal routes |
 | `INTERNAL_SHARED_SECRET` | empty | Optional shared value accepted via `x-internal-secret` |
+
+The issuer in the provider's discovery document must exactly match the `issuer` configured in each client. If the SDK reports `Discovery issuer "http://localhost:3000/api/oidc" does not match "https://node-accounts-backend.onrender.com/api/oidc"`, the backend is publishing its local default issuer. Set the backend's production `OIDC_ISSUER` to `https://node-accounts-backend.onrender.com/api/oidc` and `APP_URL` to `https://node-accounts-backend.onrender.com`, then redeploy or restart it. Confirm that `https://node-accounts-backend.onrender.com/api/oidc/.well-known/openid-configuration` returns the same URL in its `issuer` field. Do not work around the mismatch by disabling issuer validation or pointing clients at localhost.
 
 ### Database tables
 
