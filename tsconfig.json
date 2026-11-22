@@ -17,6 +17,7 @@
     "sourceMap": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
+    "jsx": "react-jsx",
     "skipLibCheck": true
   },
   "include": [

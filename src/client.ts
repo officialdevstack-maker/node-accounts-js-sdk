@@ -16,9 +16,9 @@ import type {
   UserClaims,
 } from './types.js';
 import { base64urlEncode, nowSeconds, normalizeIssuer, record, text } from './util.js';
+import { DEFAULT_ISSUER } from './constants.js';
 
 const DEFAULT_SCOPE = 'openid profile email';
-const DEFAULT_ISSUER = 'https://accounts.spurs.com.ng/api/oidc';
 const PENDING_TTL_MS = 15 * 60_000;
 const CALLBACK_PARAMS = ['code', 'state', 'iss', 'error', 'error_description'];
 const env = globalThis as typeof globalThis & {

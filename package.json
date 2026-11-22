@@ -1,6 +1,6 @@
 {
   "name": "@spurs/auth",
-  "version": "0.2.0",
+  "version": "2.0.0",
   "description": "JavaScript SDK for Spurs Accounts (OpenID Connect, authorization code + PKCE)",
   "license": "ISC",
   "repository": {
@@ -27,6 +27,14 @@
     "./service": {
       "types": "./dist/src/service.d.ts",
       "default": "./dist/src/service.js"
+    },
+    "./next": {
+      "types": "./dist/src/next.d.ts",
+      "default": "./dist/src/next.js"
+    },
+    "./react": {
+      "types": "./dist/src/react.d.ts",
+      "default": "./dist/src/react.js"
     }
   },
   "files": [
@@ -40,9 +48,23 @@
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test test/*.test.ts",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },
+  "peerDependencies": {
+    "next": ">=15",
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@types/react": "^19",
     "@types/node": "^26.6.6",
     "tsx": "^4.23.15",
     "typescript": "~5.9.3"
