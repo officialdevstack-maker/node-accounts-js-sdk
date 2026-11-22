@@ -112,8 +112,10 @@ export function SpursSignInButton({
 function initialsOf(user: { name?: string | null; email?: string | null }): string {
   const source = user.name?.trim() || user.email?.trim() || "?";
   // Array.from keeps surrogate pairs (emoji, rarer scripts) intact.
-  const parts = source.split(/\s+/).filter(Boolean).map((p) => Array.from(p)[0]);
-  const letters = parts.length >= 2 ? parts[0] + parts[1] : parts[0] ?? "?";
+  const parts = source.split(/\s+/).filter(Boolean).map((p) => Array.from(p)[0] ?? "");
+  const first = parts[0] ?? "";
+  const second = parts[1];
+  const letters = second ? first + second : first || "?";
   return letters.toUpperCase();
 }
 
@@ -125,7 +127,8 @@ function initialsOf(user: { name?: string | null; email?: string | null }): stri
 function shade(color: string, amount: number): string {
   const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
   if (!m) return color;
-  const hex = m[1].length === 3 ? m[1].replace(/./g, "$&$&") : m[1];
+  const matched = m[1] ?? "6366f1";
+  const hex = matched.length === 3 ? matched.replace(/./g, "$&$&") : matched;
   const num = parseInt(hex, 16);
   const clamp = (v: number) => Math.max(0, Math.min(255, v));
   const r = clamp((num >> 16) + amount);

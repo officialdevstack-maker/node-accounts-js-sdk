@@ -54,7 +54,7 @@ export interface SpursSignInButtonProps {
     /** Inline styles merged over the defaults. */
     style?: CSSProperties;
 }
-export declare function SpursSignInButton({ returnTo, issuer, children, accent, className, style, }: SpursSignInButtonProps): any;
-export declare function SpursAccountMenu({ user, accent, accentTo, issuer, signOutUrl, onSignOut, signInUrl, size, align, theme, children, className, style, buttonClassName, popoverClassName, }: SpursAccountMenuProps): any;
+export declare function SpursSignInButton({ returnTo, issuer, children, accent, className, style, }: SpursSignInButtonProps): import("react").JSX.Element;
+export declare function SpursAccountMenu({ user, accent, accentTo, issuer, signOutUrl, onSignOut, signInUrl, size, align, theme, children, className, style, buttonClassName, popoverClassName, }: SpursAccountMenuProps): import("react").JSX.Element;
 export default SpursAccountMenu;
 //# sourceMappingURL=react.d.ts.map
