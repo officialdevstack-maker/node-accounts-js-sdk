@@ -1,25 +1,36 @@
-import { SpursSession } from './session.js';
 import type { SpursUser } from './types.js';
-export declare function spurs(): SpursSession;
 export declare function isPublicPath(pathname: string, pattern: string): boolean;
-export declare function getSpursUser(session?: SpursSession): Promise<SpursUser | null>;
-export declare function requireSpursUser(returnTo?: string, session?: SpursSession): Promise<SpursUser>;
-export interface SpursProxyOptions {
+export interface SpursNextOptions {
+    clientId?: string;
+    clientSecret?: string;
+    sessionSecret?: string;
+    appUrl?: string;
+    issuer?: string;
+    scope?: string;
+    basePath?: string;
+    sessionSeconds?: number;
     publicPaths?: string[];
     apiPaths?: string[];
-    session?: SpursSession;
-    appUrl?: string;
+    logoutRedirect?: string;
 }
-export declare function createSpursProxy(options?: SpursProxyOptions): (request: {
-    nextUrl: {
-        pathname: string;
-        search?: string;
-    };
-    url: string;
-    cookies: {
-        get(name: string): {
-            value: string;
-        } | undefined;
-    };
-}) => Promise<unknown>;
+export declare function createSpursNext(options?: SpursNextOptions): {
+    proxy: (request: {
+        nextUrl: {
+            pathname: string;
+            search?: string;
+        };
+        cookies: {
+            get(name: string): {
+                value: string;
+            } | undefined;
+        };
+    }) => Promise<unknown>;
+    GET: (request: Request) => Promise<Response>;
+    getUser: () => Promise<SpursUser | null>;
+    requireUser: (returnTo?: string) => Promise<SpursUser>;
+    signInUrl: (returnTo?: string) => string;
+    signOutUrl: (options?: {
+        everywhere?: boolean;
+    }) => string;
+};
 //# sourceMappingURL=next.d.ts.map

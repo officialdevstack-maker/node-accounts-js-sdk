@@ -20,6 +20,40 @@ npm run artisan -- oidc:client:create "VendPro" --first-party --public \
   --scopes=openid,profile,email,phone,offline_access
 ```
 
+## Next.js app sessions
+
+Apps on independent domains can keep their own signed session cookie and use
+OIDC to sign in through Spurs Accounts:
+
+```ts
+// lib/spurs.ts
+import { createSpursNext } from '@spurs/auth/next';
+
+export const spurs = createSpursNext({
+  publicPaths: ['/', '/login', '/api/private/', '/api/providers/'],
+});
+```
+
+```ts
+// app/auth/[action]/route.ts
+import { spurs } from '@/lib/spurs';
+export const GET = spurs.GET;
+```
+
+```ts
+// proxy.ts
+import { spurs } from '@/lib/spurs';
+export const proxy = spurs.proxy;
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
+};
+```
+
+Set `APP_URL`, `SPURS_CLIENT_ID`, `SPURS_SESSION_SECRET`, and `SPURS_ISSUER`
+for production. The OIDC redirect URI must be
+`<APP_URL>/auth/callback`, and the issuer must point to the Accounts frontend
+origin serving `/api/*`, not only the backend hostname.
+
 ## Browser app
 
 ```ts

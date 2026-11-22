@@ -18,15 +18,12 @@ const EDGE = 8;
 // useLayoutEffect warns during SSR on React < 19; fall back to useEffect there.
 const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 const baseOf = (issuer) => accountsOrigin(issuer || DEFAULT_ISSUER);
-export function SpursSignInButton({ returnTo, issuer, children = "Sign in with Spurs", accent = DEFAULT_ACCENT, className, style, }) {
-    // Start with a stable value so server and client markup match, then upgrade
-    // relative paths to absolute URLs after hydration, when the app origin is known.
+export function SpursSignInButton({ returnTo, signInPath = "/auth/login", children = "Sign in with Spurs", accent = DEFAULT_ACCENT, className, style, }) {
     const [target, setTarget] = useState(returnTo ?? "/");
     useEffect(() => {
-        setTarget(returnTo ? new URL(returnTo, window.location.origin).toString() : window.location.href);
+        setTarget(returnTo ?? `${window.location.pathname}${window.location.search}`);
     }, [returnTo]);
-    const href = `${baseOf(issuer)}/sso/continue?return_to=${encodeURIComponent(target)}`;
-    return (_jsx("a", { href: href, className: cn("spurs-sign-in", className), style: { ...S.signIn, background: accent, ...style }, children: children }));
+    return (_jsx("a", { href: `${signInPath}?return_to=${encodeURIComponent(target)}`, className: cn("spurs-sign-in", className), style: { ...S.signIn, background: accent, ...style }, children: children }));
 }
 function initialsOf(user) {
     const source = user.name?.trim() || user.email?.trim() || "?";
@@ -157,11 +154,11 @@ export function SpursAccountMenu({ user, accent = DEFAULT_ACCENT, accentTo, issu
     };
     if (!user) {
         // An explicit signInUrl wins; otherwise use the button that carries return_to.
-        return signInUrl ? (_jsx("a", { href: signInUrl, className: cn("spurs-sign-in", className), style: { ...S.signIn, background: accent, ...style }, children: "Sign in with Spurs" })) : (_jsx(SpursSignInButton, { issuer: issuer, accent: accent, className: className, style: style }));
+        return signInUrl ? (_jsx("a", { href: signInUrl, className: cn("spurs-sign-in", className), style: { ...S.signIn, background: accent, ...style }, children: "Sign in with Spurs" })) : (_jsx(SpursSignInButton, { accent: accent, className: className, style: style }));
     }
     const base = baseOf(issuer);
     const accountUrl = `${base}/me`;
-    const outUrl = signOutUrl ?? `${base}/logout`;
+    const outUrl = signOutUrl ?? "/auth/logout";
     const gradient = `linear-gradient(135deg, ${accent}, ${accentTo ?? shade(accent, -28)})`;
     const dark = theme === "dark";
     const surface = dark ? "#18181b" : "#ffffff";

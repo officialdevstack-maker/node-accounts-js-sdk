@@ -41,20 +41,14 @@ export interface SpursAccountMenuProps {
     popoverClassName?: string;
 }
 export interface SpursSignInButtonProps {
-    /** Where Spurs Accounts sends the user after signing in. Defaults to the current page. */
     returnTo?: string;
-    /** Accounts base URL. Baked in — override only for dev/staging. */
-    issuer?: string;
-    /** Override the button label. */
+    signInPath?: string;
     children?: ReactNode;
-    /** Button colour. Defaults to Spurs indigo. */
     accent?: string;
-    /** Extra classes, merged with Tailwind conflict resolution. */
     className?: string;
-    /** Inline styles merged over the defaults. */
     style?: CSSProperties;
 }
-export declare function SpursSignInButton({ returnTo, issuer, children, accent, className, style, }: SpursSignInButtonProps): import("react").JSX.Element;
+export declare function SpursSignInButton({ returnTo, signInPath, children, accent, className, style, }: SpursSignInButtonProps): import("react").JSX.Element;
 export declare function SpursAccountMenu({ user, accent, accentTo, issuer, signOutUrl, onSignOut, signInUrl, size, align, theme, children, className, style, buttonClassName, popoverClassName, }: SpursAccountMenuProps): import("react").JSX.Element;
 export default SpursAccountMenu;
 //# sourceMappingURL=react.d.ts.map

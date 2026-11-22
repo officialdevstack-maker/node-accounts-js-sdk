@@ -65,17 +65,11 @@ export interface SpursAccountMenuProps {
 }
 
 export interface SpursSignInButtonProps {
-  /** Where Spurs Accounts sends the user after signing in. Defaults to the current page. */
   returnTo?: string;
-  /** Accounts base URL. Baked in — override only for dev/staging. */
-  issuer?: string;
-  /** Override the button label. */
+  signInPath?: string;
   children?: ReactNode;
-  /** Button colour. Defaults to Spurs indigo. */
   accent?: string;
-  /** Extra classes, merged with Tailwind conflict resolution. */
   className?: string;
-  /** Inline styles merged over the defaults. */
   style?: CSSProperties;
 }
 
@@ -83,24 +77,20 @@ const baseOf = (issuer?: string) => accountsOrigin(issuer || DEFAULT_ISSUER);
 
 export function SpursSignInButton({
   returnTo,
-  issuer,
+  signInPath = "/auth/login",
   children = "Sign in with Spurs",
   accent = DEFAULT_ACCENT,
   className,
   style,
 }: SpursSignInButtonProps) {
-  // Start with a stable value so server and client markup match, then upgrade
-  // relative paths to absolute URLs after hydration, when the app origin is known.
   const [target, setTarget] = useState(returnTo ?? "/");
   useEffect(() => {
-    setTarget(returnTo ? new URL(returnTo, window.location.origin).toString() : window.location.href);
+    setTarget(returnTo ?? `${window.location.pathname}${window.location.search}`);
   }, [returnTo]);
-
-  const href = `${baseOf(issuer)}/sso/continue?return_to=${encodeURIComponent(target)}`;
 
   return (
     <a
-      href={href}
+      href={`${signInPath}?return_to=${encodeURIComponent(target)}`}
       className={cn("spurs-sign-in", className)}
       style={{ ...S.signIn, background: accent, ...style }}
     >
@@ -276,13 +266,13 @@ export function SpursAccountMenu({
         Sign in with Spurs
       </a>
     ) : (
-      <SpursSignInButton issuer={issuer} accent={accent} className={className} style={style} />
+      <SpursSignInButton accent={accent} className={className} style={style} />
     );
   }
 
   const base = baseOf(issuer);
   const accountUrl = `${base}/me`;
-  const outUrl = signOutUrl ?? `${base}/logout`;
+  const outUrl = signOutUrl ?? "/auth/logout";
   const gradient = `linear-gradient(135deg, ${accent}, ${accentTo ?? shade(accent, -28)})`;
 
   const dark = theme === "dark";
