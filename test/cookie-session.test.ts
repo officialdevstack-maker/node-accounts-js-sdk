@@ -16,3 +16,4 @@ test('readCookie decodes values and ignores malformed entries', () => {
   assert.equal(readCookie('spurs_app=%ZZ', 'spurs_app'), '%ZZ');
   assert.equal(readCookie('theme=dark', 'spurs_app'), undefined);
 });
+

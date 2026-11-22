@@ -33,4 +33,16 @@ export declare function createSpursNext(options?: SpursNextOptions): {
         everywhere?: boolean;
     }) => string;
 };
+export declare function createSpursProxy(options?: SpursNextOptions): (request: {
+    nextUrl: {
+        pathname: string;
+        search?: string;
+    };
+    cookies: {
+        get(name: string): {
+            value: string;
+        } | undefined;
+    };
+}) => Promise<unknown>;
+export declare function createSpursAuthRoute(options?: SpursNextOptions): (request: Request) => Promise<Response>;
 //# sourceMappingURL=next.d.ts.map

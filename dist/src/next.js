@@ -48,39 +48,46 @@ export function createSpursNext(options = {}) {
     const apiPaths = options.apiPaths ?? ['/api/'];
     const sessionSeconds = options.sessionSeconds ?? 8 * 3600;
     const logoutRedirect = options.logoutRedirect ?? '/';
-    let cached;
-    function resolve() {
-        if (cached)
-            return cached;
+    let base;
+    let full;
+    function resolveBase() {
+        if (base)
+            return base;
         const env = readEnv();
-        const clientId = options.clientId ?? env.SPURS_CLIENT_ID;
-        const clientSecret = options.clientSecret ?? env.SPURS_CLIENT_SECRET;
         const secret = options.sessionSecret ?? env.SPURS_SESSION_SECRET;
         const vercelHost = env.VERCEL_PROJECT_PRODUCTION_URL;
         const appUrl = (options.appUrl ?? env.APP_URL ?? (vercelHost ? `https://${vercelHost}` : undefined))?.replace(/\/+$/, '');
-        if (!clientId)
-            throw new Error('[spurs] clientId is required (SPURS_CLIENT_ID).');
         if (!secret)
             throw new Error('[spurs] sessionSecret is required (SPURS_SESSION_SECRET).');
         if (!appUrl)
             throw new Error('[spurs] appUrl is required (APP_URL).');
-        cached = {
-            appUrl,
-            secret,
-            secure: appUrl.startsWith('https://'),
+        base = { appUrl, secret, secure: appUrl.startsWith('https://') };
+        return base;
+    }
+    function resolve() {
+        if (full)
+            return full;
+        const env = readEnv();
+        const clientId = options.clientId ?? env.SPURS_CLIENT_ID;
+        const clientSecret = options.clientSecret ?? env.SPURS_CLIENT_SECRET;
+        if (!clientId)
+            throw new Error('[spurs] clientId is required (SPURS_CLIENT_ID).');
+        const b = resolveBase();
+        full = {
+            ...b,
             auth: new SpursAuth({
                 issuer: resolveIssuer(options.issuer),
                 clientId,
                 ...(clientSecret ? { clientSecret } : {}),
                 ...(options.scope ? { scope: options.scope } : {}),
-                redirectUri: `${appUrl}${basePath}/callback`,
+                redirectUri: `${b.appUrl}${basePath}/callback`,
                 storage: 'memory',
             }),
         };
-        return cached;
+        return full;
     }
     async function readUser(token) {
-        return (await openCookie(token, resolve().secret))?.u ?? null;
+        return (await openCookie(token, resolveBase().secret))?.u ?? null;
     }
     const loginPath = (returnTo) => `${basePath}/login?return_to=${encodeURIComponent(returnTo)}`;
     async function login(app, url) {
@@ -146,7 +153,7 @@ export function createSpursNext(options = {}) {
             return NextResponse.json({ message: 'Unauthenticated.' }, { status: 401 });
         }
         const returnTo = `${pathname}${request.nextUrl.search ?? ''}`;
-        return NextResponse.redirect(`${resolve().appUrl}${loginPath(returnTo)}`);
+        return NextResponse.redirect(`${resolveBase().appUrl}${loginPath(returnTo)}`);
     }
     async function getUser() {
         const store = await cookies();
@@ -166,5 +173,11 @@ export function createSpursNext(options = {}) {
         signInUrl: (returnTo = '/') => loginPath(returnTo),
         signOutUrl: (options = {}) => `${basePath}/logout${options.everywhere ? '?everywhere=1' : ''}`,
     };
+}
+export function createSpursProxy(options = {}) {
+    return createSpursNext(options).proxy;
+}
+export function createSpursAuthRoute(options = {}) {
+    return createSpursNext(options).GET;
 }
 //# sourceMappingURL=next.js.map
