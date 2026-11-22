@@ -82,4 +82,16 @@ export interface CallbackResult {
     returnTo: string;
 }
 export type AuthListener = (tokens: TokenSet | null) => void;
+export interface SpursUser extends UserClaims {
+    id: number;
+    username?: string;
+    picture?: string;
+}
+export interface SpursSessionOptions {
+    issuer?: string;
+    cookieName?: string;
+    loginPath?: string;
+    cacheSeconds?: number;
+    fetch?: typeof fetch;
+}
 //# sourceMappingURL=types.d.ts.map
