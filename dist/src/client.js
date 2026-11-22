@@ -5,7 +5,7 @@ import { createChallenge, createVerifier, randomString } from './pkce.js';
 import { resolveStorage, storageError } from './storage.js';
 import { base64urlEncode, nowSeconds, normalizeIssuer, record, text } from './util.js';
 const DEFAULT_SCOPE = 'openid profile email';
-const DEFAULT_ISSUER = 'https://node-accounts-backend.onrender.com/api/oidc';
+const DEFAULT_ISSUER = 'https://accounts.spurs.com.ng/api/oidc';
 const PENDING_TTL_MS = 15 * 60_000;
 const CALLBACK_PARAMS = ['code', 'state', 'iss', 'error', 'error_description'];
 const env = globalThis;
