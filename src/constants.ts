@@ -1,7 +1,7 @@
 import { normalizeIssuer } from './util.js';
 
 /** Production Spurs OIDC issuer. */
-export const DEFAULT_ISSUER = 'https://accounts.spurs.com.ng/api/oidc';
+export const DEFAULT_ISSUER = 'https://node-accounts-backend.onrender.com/api/oidc';
 
 /** Cookie set by the Accounts backend after sign-in. */
 export const AUTH_COOKIE_NAME = 'auth_token';
